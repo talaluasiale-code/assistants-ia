@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chat Mistral</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f1117;
+      color: #e8e8ee;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      padding: 14px 20px;
+      border-bottom: 1px solid #262a35;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    header .dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: #ff7000;
+    }
+    header small { color: #8b90a0; font-weight: 400; margin-left: auto; }
+    header .quota { color: #ff7000; font-weight: 600; margin-left: 12px; font-size: 0.85em; }
+    #modes {
+      display: flex;
+      gap: 8px;
+      padding: 10px 20px 0;
+      max-width: 760px;
+      width: 100%;
+      margin: 0 auto;
+      flex-wrap: wrap;
+    }
+    #modes button {
+      background: #1c2130;
+      color: #b6bccd;
+      border: 1px solid #2d3345;
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-size: 0.9em;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    #modes button:hover { border-color: #ff7000; color: #e8e8ee; }
+    #modes button.active {
+      background: #ff7000;
+      border-color: #ff7000;
+      color: #fff;
+      font-weight: 600;
+    }
+    #mode-hint {
+      max-width: 760px;
+      width: 100%;
+      margin: 6px auto 0;
+      padding: 0 20px;
+      color: #8b90a0;
+      font-size: 0.85em;
+      text-align: center;
+    }
+    #chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      max-width: 760px;
+      width: 100%;
+      margin: 0 auto;
+    }
+    .msg {
+      padding: 10px 14px;
+      border-radius: 12px;
+      max-width: 85%;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      line-height: 1.5;
+    }
+    .msg.user {
+      align-self: flex-end;
+      background: #ff7000;
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+    .msg.assistant {
+      align-self: flex-start;
+      background: #1c2130;
+      border-bottom-left-radius: 4px;
+    }
+    .msg.error { align-self: center; background: #3a1d20; color: #ff9d9d; font-size: 0.9em; }
+    #welcome { color: #8b90a0; text-align: center; margin-top: 30px; }
+    form {
+      display: flex;
+      gap: 10px;
+      padding: 16px 20px;
+      border-top: 1px solid #262a35;
+      max-width: 760px;
+      width: 100%;
+      margin: 0 auto;
+    }
+    #input {
+      flex: 1;
+      background: #1c2130;
+      border: 1px solid #2d3345;
+      border-radius: 10px;
+      color: #e8e8ee;
+      padding: 12px 14px;
+      font-size: 1em;
+      resize: none;
+      font-family: inherit;
+    }
+    #input:focus { outline: none; border-color: #ff7000; }
+    button {
+      background: #ff7000;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 0 22px;
+      font-size: 1em;
+      cursor: pointer;
+    }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .typing { color: #8b90a0; font-style: italic; }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="dot"></span> Assistants IA <span class="quota" id="quota"></span> <small id="model-label">mistral-small-latest</small>
+  </header>
+  <nav id="modes" aria-label="Choix de l'assistant"></nav>
+  <div id="chat">
+    <p id="welcome">Choisissez un assistant ci-dessus, puis posez votre question.</p>
+  </div>
+  <p id="mode-hint"></p>
+  <form id="form">
+    <textarea id="input" rows="1" placeholder="Écrivez votre message… (Entrée pour envoyer)" autofocus></textarea>
+    <button type="submit" id="send">Envoyer</button>
+  </form>
+
+  <script>
+    const chatEl = document.getElementById("chat");
+    const form = document.getElementById("form");
+    const input = document.getElementById("input");
+    const sendBtn = document.getElementById("send");
+    const welcome = document.getElementById("welcome");
+    const modesNav = document.getElementById("modes");
+    const modeHint = document.getElementById("mode-hint");
+    const quotaEl = document.getElementById("quota");
+    let remainingQuota = null;
+    let limitQuota = null;
+    const history = [];
+    let mode = "general";
+    let busy = false;
+
+    const HINTS = {
+      general: "Posez n'importe quelle question.",
+      entretien: "Indiquez le poste visé, puis le coach jouera le recruteur et vous donnera un feedback après chaque réponse.",
+      email: "Décrivez la situation (destinataire, objectif, ton) et recevez un e-mail prêt à envoyer.",
+      examen: "Choisissez une matière ou un chapitre : le tuteur explique, puis vous interroge.",
+    };
+
+    function setMode(id, label) {
+      mode = id;
+      history.length = 0;
+      chatEl.querySelectorAll(".msg").forEach(m => m.remove());
+      welcome.style.display = "";
+      welcome.textContent = `Assistant « ${label} » sélectionné — ${HINTS[id] || "Posez votre question."}`;
+      modeHint.textContent = "";
+      modesNav.querySelectorAll("button").forEach(b =>
+        b.classList.toggle("active", b.dataset.id === id),
+      );
+      input.focus();
+    }
+
+    async function loadModes() {
+      try {
+        const res = await fetch("/api/modes");
+        const modes = await res.json();
+        modes.forEach(({ id, label }) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.dataset.id = id;
+          btn.textContent = label;
+          btn.addEventListener("click", () => !busy && setMode(id, label));
+          modesNav.appendChild(btn);
+        });
+        const first = modes[0] || { id: "general", label: "Assistant général" };
+        setMode(first.id, first.label);
+      } catch {
+        modeHint.textContent = "Impossible de charger la liste des assistants.";
+      }
+    }
+    loadModes();
+
+    function addBubble(role, text) {
+      const div = document.createElement("div");
+      div.className = `msg ${role}`;
+      div.textContent = text;
+      chatEl.appendChild(div);
+      chatEl.scrollTop = chatEl.scrollHeight;
+      return div;
+    }
+
+    function updateQuotaDisplay() {
+      quotaEl.textContent = remainingQuota === null ? "" : `• ${remainingQuota}/${limitQuota} messages restants aujourd'hui`;
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text || sendBtn.disabled) return;
+
+      welcome.style.display = "none";
+      input.value = "";
+      input.style.height = "auto";
+      addBubble("user", text);
+      history.push({ role: "user", content: text });
+
+      sendBtn.disabled = true;
+      busy = true;
+      const typing = addBubble("assistant", "…");
+      typing.classList.add("typing");
+
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: history, mode }),
+        });
+        const data = await res.json();
+        typing.classList.remove("typing");
+        if (!res.ok) throw new Error(data.error || "Erreur inconnue");
+        typing.textContent = data.reply;
+        history.push({ role: "assistant", content: data.reply });
+        if (typeof data.remaining === "number") {
+          remainingQuota = data.remaining;
+          limitQuota = data.limit;
+          updateQuotaDisplay();
+        }
+      } catch (err) {
+        typing.remove();
+        addBubble("error", err.message);
+        history.pop();
+        if (String(err.message).startsWith("Quota")) {
+          remainingQuota = 0;
+          updateQuotaDisplay();
+        }
+      } finally {
+        sendBtn.disabled = false;
+        busy = false;
+        input.focus();
+        chatEl.scrollTop = chatEl.scrollHeight;
+      }
+    });
+
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        form.requestSubmit();
+      }
+    });
+    input.addEventListener("input", () => {
+      input.style.height = "auto";
+      input.style.height = Math.min(input.scrollHeight, 150) + "px";
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "name": "mistral-chat-app",
+  "version": "1.0.0",
+  "description": "App web de chat minimale propulsée par l'API Mistral (mistral-small-latest)",
+  "type": "module",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@mistralai/mistralai": "^1.9.18"
+  }
+}
