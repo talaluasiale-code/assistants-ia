@@ -36,6 +36,18 @@
     }
     header small { color: #8b90a0; font-weight: 400; margin-left: auto; }
     header .quota { color: #ff7000; font-weight: 600; margin-left: 12px; font-size: 0.85em; }
+    #share-btn {
+      background: #1c2130;
+      border: 1px solid #2d3345;
+      color: #b6bccd;
+      border-radius: 999px;
+      padding: 4px 12px;
+      font-size: 0.8em;
+      cursor: pointer;
+      margin-left: 10px;
+      flex-shrink: 0;
+    }
+    #share-btn:hover { border-color: #ff7000; color: #e8e8ee; }
     #modes {
       display: flex;
       gap: 8px;
@@ -168,7 +180,7 @@
 </head>
 <body>
   <header>
-    <span class="dot"></span> Assistants IA <span class="quota" id="quota"></span> <small id="model-label">mistral-small-latest</small>
+    <span class="dot"></span> Assistants IA <span class="quota" id="quota"></span> <button type="button" id="share-btn">Partager 🔗</button> <small id="model-label">mistral-small-latest</small>
   </header>
   <nav id="modes" aria-label="Choix de l'assistant"></nav>
   <div id="chat">
@@ -355,6 +367,30 @@
     document.getElementById("install-dismiss").addEventListener("click", () => {
       banner.hidden = true;
       localStorage.setItem("install-dismissed", "1");
+    });
+
+    const shareBtn = document.getElementById("share-btn");
+    const shareData = {
+      title: "Assistants IA",
+      text: "Découvre ces 4 assistants IA gratuits : coach d'entretien, e-mails pro, tuteur de révision…",
+      url: window.location.origin,
+    };
+
+    shareBtn.addEventListener("click", async () => {
+      try {
+        if (navigator.share) {
+          await navigator.share(shareData);
+          return;
+        }
+        await navigator.clipboard.writeText(shareData.url);
+        const original = shareBtn.textContent;
+        shareBtn.textContent = "Lien copié ✓";
+        setTimeout(() => (shareBtn.textContent = original), 2000);
+      } catch (err) {
+        if (err?.name !== "AbortError") {
+          console.error("Partage impossible :", err);
+        }
+      }
     });
   </script>
 </body>
