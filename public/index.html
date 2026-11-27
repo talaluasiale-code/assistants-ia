@@ -135,6 +135,35 @@
     }
     button:disabled { opacity: 0.5; cursor: not-allowed; }
     .typing { color: #8b90a0; font-style: italic; }
+    #install-banner {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      max-width: 760px;
+      width: 100%;
+      margin: 10px auto 0;
+      padding: 8px 12px 8px 16px;
+      background: #1c2130;
+      border: 1px solid #2d3345;
+      border-radius: 12px;
+      font-size: 0.9em;
+      flex-wrap: wrap;
+    }
+    #install-banner[hidden] { display: none; }
+    #install-text { flex: 1; min-width: 200px; color: #b6bccd; }
+    #install-btn {
+      padding: 8px 16px;
+      font-size: 0.95em;
+      border-radius: 8px;
+    }
+    #install-dismiss {
+      background: none;
+      border: none;
+      color: #8b90a0;
+      font-size: 1.3em;
+      padding: 0 6px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -146,6 +175,11 @@
     <p id="welcome">Choisissez un assistant ci-dessus, puis posez votre question.</p>
   </div>
   <p id="mode-hint"></p>
+  <div id="install-banner" hidden>
+    <span id="install-text">📲 Installez l'app sur votre écran d'accueil</span>
+    <button type="button" id="install-btn">Installer</button>
+    <button type="button" id="install-dismiss" aria-label="Fermer">×</button>
+  </div>
   <form id="form">
     <textarea id="input" rows="1" placeholder="Écrivez votre message… (Entrée pour envoyer)" autofocus></textarea>
     <button type="submit" id="send">Envoyer</button>
@@ -281,6 +315,47 @@
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js"));
     }
+
+    const banner = document.getElementById("install-banner");
+    const installBtn = document.getElementById("install-btn");
+    const installText = document.getElementById("install-text");
+    let deferredPrompt = null;
+
+    const isStandalone =
+      window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+    const isIos =
+      /iphone|ipad|ipod/i.test(navigator.userAgent) && !/crios|fxios/i.test(navigator.userAgent);
+
+    if (localStorage.getItem("install-dismissed") === "1") {
+      // bannière refusée par l'utilisateur, on ne la montre plus
+    } else if (isStandalone) {
+      // déjà installée, rien à proposer
+    } else if (isIos) {
+      installText.textContent = "📲 Sur iPhone : appuyez sur Partager ⬆️ puis « Sur l'écran d'accueil »";
+      installBtn.remove();
+      banner.hidden = false;
+    }
+
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      if (localStorage.getItem("install-dismissed") !== "1" && !isStandalone) {
+        banner.hidden = false;
+      }
+    });
+
+    installBtn.addEventListener("click", async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === "accepted") banner.hidden = true;
+      deferredPrompt = null;
+    });
+
+    document.getElementById("install-dismiss").addEventListener("click", () => {
+      banner.hidden = true;
+      localStorage.setItem("install-dismissed", "1");
+    });
   </script>
 </body>
 </html>
