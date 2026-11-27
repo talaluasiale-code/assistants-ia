@@ -18,6 +18,8 @@ Une seule app, **plusieurs assistants spécialisés** (les prompts système sont
 ```
 ├── server.mjs          # Serveur HTTP + endpoint /api/chat (clé API ici uniquement)
 ├── public/index.html   # Interface de chat
+├── public/manifest.webmanifest + sw.js + icons/  # PWA (app installable)
+├── generate-icons.mjs  # Régénère les icônes PNG (node generate-icons.mjs)
 ├── .env.example        # Modèle de variable d'environnement
 └── package.json
 ```
@@ -65,6 +67,16 @@ DAILY_MESSAGE_LIMIT=25 npm start
 ```
 
 Quand le quota est atteint, l'API renvoie `429` avec un message invitant à revenir le lendemain ou à passer en premium — point d'accroche naturel pour brancher un paywall (ex. Stripe) : offrir le plan payant aux visiteurs identifiés revient à ignorer le quota pour leur IP/session.
+
+## Installer comme application (PWA)
+
+L'app est installable directement depuis le navigateur, sans store ni validation :
+
+- **Android (Chrome)** : ouvrez l'app → menu ⋮ → **« Installer l'application »** → une icône apparaît sur l'écran d'accueil
+- **iPhone/iPad (Safari)** : bouton **Partager** → **« Sur l'écran d'accueil »**
+- **Ordinateur (Chrome/Edge)** : icône d'installation dans la barre d'adresse
+
+L'app s'ouvre alors en plein écran, avec son icône orange (bulle de chat), et fonctionne même hors connexion pour l'interface (service worker).
 
 ## Déploiement
 
